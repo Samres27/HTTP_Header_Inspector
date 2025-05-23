@@ -3,13 +3,14 @@
 
 **Advanced HTTP Headers Analysis Tool**  
 *Desarrollado por Samuel*  
-📜 MIT Licensed | ⚠️ Solo para el uso etico 
+📜 MIT Licensed | ⚠️ Solo para uso ético  
 
 ## Description
-`HTTP Header Inspector` es una herramienta python para el analisis de vulnerabilidades incluyendo:
-- Informacion sensible del servidor (Server, X-Powered-By)
-- Riesgos de envenenamiento de caché 
-- Vulnerabilidades de encabezado
+Herramienta Python para análisis de seguridad en encabezados HTTP que incluye:
+- Detección de información sensible (Server, X-Powered-By)
+- Identificación de vulnerabilidades CPDoS (Cache Poisoned Denial of Service)
+- Análisis de riesgos en cabeceras HTTP
+- Fuzzing de encabezados personalizados
 
 ## Installation
 ```bash
@@ -20,46 +21,65 @@ pip install -r requirements.txt
 
 ## Usage
 ```bash
-# Basic header analysis
+# Análisis básico
 python3 inspector.py -u https://example.com
 
-# Custom header testing
-python3 inspector.py -u https://example.com -H "X-Forwarded-Host: test.com"
+# Detección de CPDoS
+python3 inspector.py -u https://example.com -CP
 
-# Advanced fuzzing with wordlist
+# Fuzzing con wordlist personalizada
 python3 inspector.py -u https://example.com -w headers_wordlist.txt
 
-# Full fuzzing mode (100+ headers)
+# Modo completo (100+ cabeceras)
 python3 inspector.py -u https://example.com -FF
 ```
 
 ## Options
-| Argument | Description |
-|----------|-------------|
-| `-u URL` | Target URL (required) |
-| `-H` | Add custom headers |
-| `-w` | Use wordlist file (header:value format) |
-| `-FF` | Enable full fuzzing mode |
+| Argumento | Descripción |
+|-----------|-------------|
+| `-u URL`  | URL objetivo (requerido) |
+| `-H`      | Añadir cabeceras personalizadas |
+| `-w`      | Usar archivo wordlist (formato cabecera:valor) |
+| `-FF`     | Habilitar modo fuzzing completo |
+| `-CP`     | Detectar vulnerabilidades CPDoS |
+
+## Detección de CPDoS
+El parámetro `-CP` analiza estas vulnerabilidades:
+
+| Vulnerabilidad | Descripción | Técnica de explotación |
+|---------------|-------------|------------------------|
+| **HHO** (HTTP Header Oversize) | Cabeceras sobredimensionadas causan errores cacheados | Enviar cabeceras > 8KB |
+| **HMC** (HTTP Meta Character) | Caracteres especiales malformados en cabeceras | Usar caracteres como \x00, \n, \r |
+| **HMO** (HTTP Method Override) | Sustitución de métodos HTTP vía cabeceras | Usar X-HTTP-Method-Override |
+
+Ejemplo de salida:
+```
+🔍 Análisis CPDoS para: https://example.com
+✅ Tecnología detectada: Nginx + Cloudflare
+
+📊 Vulnerabilidades:
+[✔️] HHO - Cabeceras grandes (Cloudflare)
+[✔️] HMC - Caracteres especiales (Nginx)
+[❌] HMO - Métodos HTTP
+```
 
 ## Sample Wordlist
-Create `headers_wordlist.txt`:
+`headers_wordlist.txt`:
 ```
 X-Forwarded-Host: evil.com
-X-Rewrite-URL: /admin
-Authorization: Bearer 123
+X-HTTP-Method-Override: PUT
+X-Original-URL: /admin
 ```
 
 ## Features
-- ✔️ Detección de encabezados sensibles
-- ✔️ Análisis de riesgo de encabezados variables
-- ✔️ Fuzzing personalizable
+- ✔️ Detección automática de tecnologías (servidor + caché)
+- ✔️ Análisis de vulnerabilidades CPDoS (HHO, HMC, HMO)
+- ✔️ Fuzzing personalizable con wordlists
 - ✔️ Interrupción segura con Ctrl+C
-- ✔️ Compatibilidad con proxy (próximamente)
+
 
 ## License
-Este proyecto esta bajo la licencia MIT - Ver [LICENSE](LICENSE) para detalles0.
+MIT License - Ver [LICENSE](LICENSE) para detalles.
 
-⚠️ **Advertencia**: Úselo solo en sistemas autorizados.
-
----
-
+⚠️ **Advertencia**:  
+Esta herramienta debe usarse solo en sistemas con permiso explícito. El uso no autorizado es ilegal.

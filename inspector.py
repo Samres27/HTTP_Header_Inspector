@@ -1,6 +1,97 @@
 import requests
 import argparse
 import sys
+import re
+from collections import defaultdict
+
+# Extraido de https://cpdos.org/#overview
+TECH_MATRIX = {
+    'ASP.NET': {
+        'Varnish': {'HHO': True, 'HMC': False, 'HMO': False},
+        'Akamai': {'HHO': True, 'HMC': False, 'HMO': False},
+        'CDN77': {'HHO': True, 'HMC': False, 'HMO': False},
+        'Cloudflare': {'HHO': True, 'HMC': False, 'HMO': False},
+        'CloudFront': {'HHO': True, 'HMC': True, 'HMO': False},
+        'Fastly': {'HHO': True, 'HMC': False, 'HMO': False}
+    },
+    
+    "IIS": {
+        "Varnish": {"HHO": True, "HMC": False, "HMO": False},
+        "Akamai": {"HHO": True, "HMC": False, "HMO": False},
+        "CDN77": {"HHO": True, "HMC": False, "HMO": False},
+        "Cloudflare": {"HHO": True, "HMC": False, "HMO": False},
+        "CloudFront": {"HHO": True, "HMC": True, "HMO": False},
+        "Fastly": {"HHO": True, "HMC": False, "HMO": False}
+    },
+    "Apache HTTPD + (ModSecurity)": {
+        "CloudFront": {"HHO": True, "HMC": True, "HMO": False}
+    },
+    "Nginx + (ModSecurity)": {
+        "CloudFront": {"HHO": True, "HMC": False, "HMO": False}
+    },
+    "Tomcat": {
+        "CloudFront": {"HHO": True, "HMC": False, "HMO": False}
+    },
+    "Varnish": {
+        "CloudFront": {"HHO": True, "HMC": True, "HMO": False}
+    },
+    "Amazon S3": {
+        "CloudFront": {"HHO": True, "HMC": False, "HMO": False}
+    },
+    "Github Pages": {
+        "CloudFront": {"HHO": True, "HMC": True, "HMO": False}
+    },
+    "Gitlab Pages": {
+        "CloudFront": {"HHO": False, "HMC": True, "HMO": False}
+    },
+    "Heroku": {
+        "CloudFront": {"HHO": True, "HMC": False, "HMO": False}
+    },
+    
+    "Beego": {
+        "CloudFront": {"HHO": False, "HMC": True, "HMO": False}
+    },
+    "Django": {
+        "CloudFront": {"HHO": True, "HMC": True, "HMO": False}
+    },
+    "Express.js": {
+        "CloudFront": {"HHO": False, "HMC": True, "HMO": False}
+    },
+    "Flask": {
+        "Akamai": {"HHO": False, "HMC": False, "HMO": True},
+        "CloudFront": {"HHO": True, "HMC": True, "HMO": True}
+    },
+    "Gin": {
+        "CloudFront": {"HHO": False, "HMC": True, "HMO": False}
+    },
+    "Laravel": {
+        "CloudFront": {"HHO": True, "HMC": True, "HMO": False}
+    },
+    "Meteor.js": {
+        "CloudFront": {"HHO": False, "HMC": True, "HMO": False}
+    },
+    "Play 1": {
+        "Varnish": {"HHO": False, "HMC": False, "HMO": True},
+        "Akamai": {"HHO": False, "HMC": False, "HMO": True},
+        "CDN77": {"HHO": False, "HMC": False, "HMO": True},
+        "Cloudflare": {"HHO": False, "HMC": False, "HMO": True},
+        "CloudFront": {"HHO": True, "HMC": False, "HMO": True},
+        "Fastly": {"HHO": False, "HMC": False, "HMO": True}
+    },
+    "Play 2": {
+        "CloudFront": {"HHO": True, "HMC": True, "HMO": False}
+    },
+    "Rails": {
+        "CloudFront": {"HHO": True, "HMC": True, "HMO": False}
+    },
+    "Spring Boot": {
+        "CloudFront": {"HHO": True, "HMC": False, "HMO": False}
+    },
+    "Symfony": {
+        "CloudFront": {"HHO": True, "HMC": True, "HMO": False}
+    }
+
+}
 
 def cargar_wordlist(ruta_archivo):
     """Carga un archivo de wordlist con formato 'encabezado:valor'."""
@@ -9,7 +100,7 @@ def cargar_wordlist(ruta_archivo):
             return dict(line.strip().split(':', 1) for line in f if ':' in line)
 
     except FileNotFoundError:
-        print(f"[❌] Error: Archivo '{ruta_archivo}' no encontrado.")
+        print(f"[X] Error: Archivo '{ruta_archivo}' no encontrado.")
         return {}
            
 def analizar_encabezados_y_recomendar(url,headers_personalizados=None):
@@ -35,7 +126,7 @@ def analizar_encabezados_y_recomendar(url,headers_personalizados=None):
             print("No se encontraron encabezados personalizados.")
 
         
-        print("\n=== 🔄 Análisis del encabezado 'Vary' ===")
+        print("\n===  Análisis del encabezado 'Vary' ===")
         if "Vary" in encabezados:
             print(f"Vary: {encabezados['Vary']}")
             if "X-Forwarded-Host" in encabezados["Vary"]:
@@ -45,7 +136,7 @@ def analizar_encabezados_y_recomendar(url,headers_personalizados=None):
             
         return response
     except KeyboardInterrupt:
-        print("\n[🛑] Ejecución interrumpida por el usuario (Ctrl+C).")
+        print("\n[STOP] Ejecución interrumpida por el usuario (Ctrl+C).")
         sys.exit(0)
     
     except Exception as e:
@@ -81,13 +172,154 @@ def fuzzing_encabezados(url,fullFuzzing, ruteWordlist, response):
             if test_response.status_code != response.status_code:
                 print(f" El encabezado '{header}' afecta la respuesta (Código: {test_response.status_code}).")
         except KeyboardInterrupt:
-                print("\n[🛑] Fuzzing interrumpido por el usuario (Ctrl+C).")
+                print("\n[STOP] Fuzzing interrumpido por el usuario (Ctrl+C).")
                 
                 sys.exit(0)  # Salir con código 0 (sin error)
                 
         except:
             pass
 
+    
+
+
+
+# tabla sacada de https://cpdos.org/#overview
+
+
+def detectar_cdn(headers):
+    cdn_headers = {
+        "Varnish": ["via"],
+        "Akamai": ["akamai-", "x-akamai"],
+        "CDN77": ["cdn77-", "x-cdn"],
+        "Cloudflare": ["cf-ray", "cf-cache-status", "server: cloudflare"],
+        "CloudFront": ["x-amz-cf-", "via: 1.1 cloudfront"],
+        "Fastly": ["x-served-by", "x-cache", "x-fastly-request-id"]
+    }
+
+    
+
+    coincidencias_cdn = ""
+
+    for cdn, patrones in cdn_headers.items():
+        for clave, valor in headers.items():
+            for patron in patrones:
+                if patron in clave or patron in valor:
+                    coincidencias_cdn=cdn
+                    break
+
+    return coincidencias_cdn if coincidencias_cdn else "No se detectó CDN conocido"
+
+def identificar_tecnologia(headers, cookies):
+    firmas = {
+        "Apache HTTPD + (ModSecurity)": ["server: apache"],
+        "Nginx + (ModSecurity)": ["server: nginx"],
+        "IIS": ["server: microsoft-iis"],
+        "Tomcat": ["server: apache-coyote"],
+        "Varnish": ["via: 1.1 varnish"],
+        "Amazon S3": ["server: amazons3", "x-amz-request-id"],
+        "Google Cloud Storage": ["server: uploadserver", "x-goog-"],
+        "Github Pages": ["server: github.com"],
+        "Gitlab Pages": ["server: gitlab"],
+        "Heroku": ["via: 1.1 vegur"],
+        "ASP.NET": ["x-powered-by: asp.net"],
+        "BeeGo": ["server: beegoserver"],
+        "Django": ["server: gunicorn", "x-content-type-options", "x-frame-options"],
+        "Express.js": ["x-powered-by: express"],
+        "Flask": ["server: werkzeug"],
+        "Gin": ["server: gin"],
+        "Laravel": ["laravel_session", "x-powered-by: php"],
+        "Meteor.js": ["server: meteor"],
+        "Play 1": ["x-powered-by: play"],
+        "Rails": ["x-runtime", "x-powered-by: phusion passenger"],
+        "Spring Boot": ["x-application-context", "server: jetty", "server: apache tomcat"],
+        "Symfony": ["x-debug-token", "x-powered-by: php"]
+    }
+
+
+    coincidencia = []
+
+    for tecnologia, patrones in firmas.items():
+        for patron in patrones:
+            if ":" in patron:
+                k, v = patron.split(":", 1)
+                if k in headers and v in headers[k]:
+                    coincidencia=tecnologia
+                    break
+            else:
+                # Buscar en cookies
+                if any(patron in ck.lower() for ck in cookies.keys()):
+                    coincidencia=tecnologia
+
+    return coincidencia if coincidencia else "No se detectó tecnología conocida"
+
+
+
+def detectar_tecnologias(url):
+    """Detecta la tecnología del servidor y caché/CDN"""
+    try:
+        response = requests.get(url, timeout=5, verify=False)
+        headers = {k.lower(): v.lower() for k, v in response.headers.items()}
+        cookies = response.cookies.get_dict()
+
+        http_impl = identificar_tecnologia(headers=headers,cookies=cookies)
+        cache_tech = detectar_cdn(headers=headers)
+        return http_impl, cache_tech, headers
+        
+    except Exception as e:
+        print(f"Error detecting technologies: {e}")
+        return None, None, None
+
+def revisar_cpdos_vulnerabilidades(http_impl, cache_tech):
+    """Revisa vulnerabilidades CPDoS basado en la matriz"""
+    if not http_impl or not cache_tech:
+        return None
+    
+    # Buscar en la matriz principal
+    for impl, cache_dict in TECH_MATRIX.items():
+        if impl == http_impl:
+            for cache, vulns in cache_dict.items():
+                if cache == cache_tech:
+                    return vulns
+    
+    # Si no se encuentra combinación exacta, buscar por implementación
+    for impl, cache_dict in TECH_MATRIX.items():
+        if impl.split(' +')[0] == http_impl.split(' +')[0]:
+            for cache, vulns in cache_dict.items():
+                if cache == cache_tech:
+                    return vulns
+    
+    return {'HHO': False, 'HMC': False, 'HMO': False}
+
+def analizar_cpdos(url):
+    """Analiza URL para vulnerabilidades CPDoS"""
+    http_impl, cache_tech, headers = detectar_tecnologias(url)
+    
+    print(f"\n🔍 Análisis de CPDoS para: {url}")
+    print("="*50)
+    
+    if not http_impl:
+        print("[X] No se pudo determinar la implementación HTTP")
+        return
+    
+    print(f"[✓] Implementación HTTP detectada: {http_impl}")
+    
+    if cache_tech:
+        print(f"[✓] Tecnología de caché/CDN detectada: {cache_tech}")
+    else:
+        print("[i] No se detectó tecnología de caché/CDN")
+    
+    vulns = revisar_cpdos_vulnerabilidades(http_impl, cache_tech)
+    
+    print("\n Vulnerabilidades CPDoS potenciales:")
+    print(f"HHO (HTTP Header Oversize): {'[✓]' if vulns['HHO'] else '[X]'}")
+    print(f"HMC (HTTP Meta Character): {'[✓]' if vulns['HMC'] else '[X]'}")
+    print(f"HMO (HTTP Method Override): {'[✓]' if vulns['HMO'] else '[X]'}")
+    
+    
+    print("\n Cabeceras relevantes:")
+    for h in ['Server', 'X-Powered-By', 'Via', 'X-Cache', 'CF-Ray', 'X-Akamai']:
+        if h in headers:
+            print(f"{h}: {headers[h]}")
     
 
 if __name__ == "__main__":
@@ -97,6 +329,7 @@ if __name__ == "__main__":
         parser.add_argument("-H", "--header", help="Encabezado personalizado (ej: 'X-Forwarded-Host: ejemplo.com')", action="append")
         parser.add_argument("-FF", "--fullFuzzing",help="Realizar Fuzzing con todos los encabezados (por defecto 10)",action="store_true")
         parser.add_argument("-w", "--wordlist", help="Ruta a archivo de wordlist (formato 'encabezado:valor')")
+        parser.add_argument("-CP", "--cachePoisoned", help="Analisis de Cache Poising",action="store_true")
         args = parser.parse_args()
 
         custom_headers = {}
@@ -107,7 +340,9 @@ if __name__ == "__main__":
 
         response= analizar_encabezados_y_recomendar(args.url, custom_headers)
         fuzzing_encabezados(args.url,args.fullFuzzing,args.wordlist,response)
+        if args.cachePoisoned : analizar_cpdos(args.url)
     
     except KeyboardInterrupt:
-        print("\n[🛑] Programa detenido por el usuario (Ctrl+C).")
+        print("\n[STOP] Programa detenido por el usuario (Ctrl+C).")
         sys.exit(0)
+        
