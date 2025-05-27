@@ -196,14 +196,14 @@ def fuzzing_encabezados(url,fullFuzzing, ruteWordlist, response):
 
 
 def detectar_cdn(headers):
-    cdn_headers = {
-        "Varnish": ["via: 1.1 varnish"],
+    cdn_headers = { 
         "Akamai": ["akamai-", "x-akamai"],
         "CDN77": ["cdn77-", "x-cdn","X-77-POP","X-77-Cache","X-77-NZT-Ray"],
         "Cloudflare": ["cf-ray", "cf-cache-status", "server:cloudflare","Cf-Connecting-IP","CF-EW-Via","CF-Pseudo-IPv4","CF-IPCountry","CDN-Loop","CF-Worker"],
-        "CloudFront": ["x-amz-cf-", "via:1.1 cloudfront","CloudFront-Viewer-Address","CloudFront-Viewer-Address","CloudFront-Viewer-Country-Region","CloudFront-Viewer-Header-Order"],
-        "Fastly": ["fastly-cachetype", "x-cache", "x-fastly-request-id","fastly-"],
+        "CloudFront": ["x-amz-cf-","server:cloudfront", "via:1.1 cloudfront","CloudFront-Viewer-Address","CloudFront-Viewer-Address","CloudFront-Viewer-Country-Region","CloudFront-Viewer-Header-Order"],
+        "Fastly": ["fastly-cachetype", "x-fastly-request-id","fastly-"],
         "Envoy":["x-envoy-","x-datadog-"],
+        "Varnish": ["via: 1.1 varnish"],
     }
 
     coincidencias_cdn = ""
