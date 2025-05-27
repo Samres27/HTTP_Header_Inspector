@@ -200,19 +200,37 @@ def detectar_cdn(headers):
         "Varnish": ["via: 1.1 varnish"],
         "Akamai": ["akamai-", "x-akamai"],
         "CDN77": ["cdn77-", "x-cdn","X-77-POP","X-77-Cache","X-77-NZT-Ray"],
-        "Cloudflare": ["cf-ray", "cf-cache-status", "server: cloudflare","Cf-Connecting-IP","CF-EW-Via","CF-Pseudo-IPv4","CF-IPCountry","CDN-Loop","CF-Worker"],
-        "CloudFront": ["x-amz-cf-", "via: 1.1 cloudfront","CloudFront-Viewer-Address","CloudFront-Viewer-Address","CloudFront-Viewer-Country-Region","CloudFront-Viewer-Header-Order"],
-        "Fastly": ["fastly-cachetype", "x-cache", "x-fastly-request-id","fastly-"]
+        "Cloudflare": ["cf-ray", "cf-cache-status", "server:cloudflare","Cf-Connecting-IP","CF-EW-Via","CF-Pseudo-IPv4","CF-IPCountry","CDN-Loop","CF-Worker"],
+        "CloudFront": ["x-amz-cf-", "via:1.1 cloudfront","CloudFront-Viewer-Address","CloudFront-Viewer-Address","CloudFront-Viewer-Country-Region","CloudFront-Viewer-Header-Order"],
+        "Fastly": ["fastly-cachetype", "x-cache", "x-fastly-request-id","fastly-"],
+        "Envoy":["x-envoy-","x-datadog-"],
     }
 
     coincidencias_cdn = ""
-
+    lower_headers = {k.lower(): v.lower() if isinstance(v, str) else v 
+                    for k, v in headers.items()}
     for cdn, patrones in cdn_headers.items():
-        for clave, valor in headers.items():
-            for patron in patrones:
-                if patron.lower() in clave or patron.lower() in valor:
-                    coincidencias_cdn=cdn
-                    break
+        for patron in patrones:
+            try:
+                if ":" in patron:  # Patrón clave:valor
+                    k_patron, v_patron = [p.strip().lower() for p in patron.split(":", 1)]
+                    
+                    # Buscar en headers
+                    if (k_patron in lower_headers and 
+                        (v_patron == lower_headers[k_patron] or 
+                         (isinstance(lower_headers[k_patron], str) and 
+                          v_patron in lower_headers[k_patron]))):
+                        return cdn
+                
+                else:  # Patrón simple (buscar en claves)
+                    patron = patron.lower()
+                    # Buscar en headers
+                    if patron in lower_headers:
+                        return cdn
+                    
+                        
+            except (AttributeError, KeyError):
+                continue
 
     return coincidencias_cdn if coincidencias_cdn else "No se detectó CDN conocido"
 
@@ -222,44 +240,54 @@ def identificar_tecnologia(headers, cookies):
         "Nginx + (ModSecurity)": ["server:nginx"],
         "IIS": ["server:microsoft-iis"],
         "Tomcat": ["server:apache-coyote"],
-        "Varnish": ["via: 1.1 varnish","server:varnish"],
+        "Varnish": ["via:1.1 varnish","server:varnish"],
         "Amazon S3": ["server:amazons3", "x-amz-request-id"],
         "Google Cloud Storage": ["server:uploadserver", "x-goog-"],
         "Github Pages": ["server:github.com"],
         "Gitlab Pages": ["server:gitlab"],
-        "Heroku": ["via: 1.1 vegur"],
-        "ASP.NET": ["x-powered-by: asp.net"],
+        "Heroku": ["via:1.1 vegur"],
+        "ASP.NET": ["x-powered-by:asp.net"],
         "BeeGo": ["server:beegoserver"],
-        "Django": ["server:gunicorn", "x-content-type-options", "x-frame-options"],
-        "Express.js": ["x-powered-by: express"],
+        "Django": ["server:gunicorn","server:WSGIServer/0.2", "server:CPython/3.10.6"],
+        "Express.js": ["x-powered-by:express"],
         "Flask": ["server:werkzeug"],
         "Gin": ["server:gin"],
-        "Laravel": ["laravel_session", "x-powered-by: php"],
+        "Laravel": ["laravel_session", "x-powered-by:php"],
         "Meteor.js": ["server:meteor"],
-        "Play 1": ["x-powered-by: play"],
-        "Rails": ["x-runtime", "x-powered-by: phusion passenger"],
+        "Play 1": ["x-powered-by:play"],
+        "Rails": ["x-runtime", "x-powered-by:phusion passenger"],
         "Spring Boot": ["x-application-context", "server:jetty", "server:apache tomcat"],
-        "Symfony": ["x-debug-token", "x-powered-by: php"]
+        "Symfony": ["x-debug-token", "x-powered-by:php"]
     }
 
 
-    coincidencia = []
-
+    coincidencia = ""
+    lower_headers = {k.lower(): v.lower() if isinstance(v, str) else v 
+                    for k, v in headers.items()}
     for tecnologia, patrones in firmas.items():
         for patron in patrones:
-            if ":" in patron:
-                k, v = patron.split(":", 1)
-                lower_dict = {
-                key: value.lower() if isinstance(value, str) else value
-                for key, value in headers.items()
-}
-                if k.lower() in lower_dict and v.lower() in headers[k].lower():
-                    coincidencia=tecnologia
-                    break
-            else:
-                # Buscar en cookies
-                if any(patron in ck.lower() for ck in cookies.keys()):
-                    coincidencia=tecnologia
+            try:
+                if ":" in patron:  # Patrón clave:valor
+                    k_patron, v_patron = [p.strip().lower() for p in patron.split(":", 1)]
+                    
+                    # Buscar en headers
+                    if (k_patron in lower_headers and 
+                        (v_patron == lower_headers[k_patron] or 
+                         (isinstance(lower_headers[k_patron], str) and 
+                          v_patron in lower_headers[k_patron]))):
+                        return tecnologia
+                
+                else:  # Patrón simple (buscar en claves)
+                    patron = patron.lower()
+                    # Buscar en headers
+                    if patron in lower_headers:
+                        return tecnologia
+                    # Buscar en cookies
+                    if patron in lower_headers['cookie']:
+                        return tecnologia
+                        
+            except (AttributeError, KeyError):
+                continue
 
     return coincidencia if coincidencia else "No se detectó tecnología conocida"
 
