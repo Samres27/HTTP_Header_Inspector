@@ -35,13 +35,18 @@ python3 inspector.py -u https://example.com -FF
 ```
 
 ## Options
+
 | Argumento | Descripción |
 |-----------|-------------|
-| `-u URL`  | URL objetivo (requerido) |
-| `-H`      | Añadir cabeceras personalizadas |
-| `-w`      | Usar archivo wordlist (formato cabecera:valor) |
-| `-FF`     | Habilitar modo fuzzing completo |
-| `-CP`     | Detectar vulnerabilidades CPDoS |
+| `-u URL`, `--url URL` | **URL objetivo** para analizar (requerido). |
+| `-s`, `--scan` | Habilita el **modo de escaneo** (sin argumentos adicionales para ataques específicos). |
+| `-H CUSTOM_HEADER`, `--header CUSTOM_HEADER` | **Añade encabezados HTTP personalizados** a la solicitud (ej: `'X-Forwarded-Host: ejemplo.com'`). Puedes usarlo varias veces para añadir múltiples encabezados. |
+| `-FF`, `--fullFuzzing` | Realiza un **fuzzing completo** de todos los encabezados HTTP. Por defecto, prueba 10 combinaciones por encabezado. |
+| `-w FILE_PATH`, `--wordlist FILE_PATH` | Especifica la **ruta a un archivo wordlist**. El archivo debe contener encabezados en el formato `nombre_cabecera:valor`. |
+| `-CP`, `--cachePoisoned` | Habilita el **análisis para detectar vulnerabilidades de Cache Poisoning (CPDoS)**. |
+| `-eHHO PAYLOAD_SIZE`, `--exploitHHO PAYLOAD_SIZE` | Activa la **explotación de HTTP Header Oversize (HHO)**. Debes especificar el tamaño de la carga (payload) en bytes. |
+| `-eHMO`, `--exploitHMO` | Activa la **explotación de HTTP Method Override (HMO)**. Se requiere usar `-H` para especificar el encabezado `X-HTTP-Method-Override` y el método. |
+| `-eHMC METACHARACTER_VALUE`, `--exploitHMC METACHARACTER_VALUE` | Activa la **explotación de HTTP Meta Character (HMC)**. Debes pasar el valor del metacaracter a inyectar (ej: `'x\x99'`). |
 
 ## Detección de CPDoS
 El parámetro `-CP` analiza estas vulnerabilidades:
